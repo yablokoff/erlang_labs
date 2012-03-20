@@ -1,5 +1,5 @@
 -module(high_order).
--export([map/2, list_heads/1, gen_list_of_lists/3, run/3]).
+-export([gen_list_of_lists/3, run/4, first_of/1, second_of/1, third_of/1]).
 
 %
 % Generate random 2D-array with specified XSize and YSize
@@ -25,10 +25,19 @@ map(F, [H|Tail]) ->
 	NewAcc = map(F, Tail),
 	[F(H)|NewAcc].
 
-list_heads(List) ->
-	map(fun([H|_])->H end, List).
+first_of(List) ->
+	lists:nth(1,List).
 
-run(MaxValue, XSize, YSize) ->
+second_of(List) ->
+	lists:nth(2,List).
+
+third_of(List) ->
+	lists:nth(3,List).
+
+list_heads(List, Fun) ->
+	map(Fun, List).
+
+run(MaxValue, XSize, YSize, Fun) ->
 	List = gen_list_of_lists(MaxValue, XSize, YSize),
 	io:format("~p~n", [List]),
-	list_heads(List).
+	list_heads(List, Fun).
