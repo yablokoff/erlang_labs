@@ -51,12 +51,37 @@ topInIsHierarchy({ {_,Subj}, Db }) ->
 		true -> false
 	end.
 
+findFirstChildren(Subj, Db) ->
+	%
+	% Find first-level children for Subj
+	%
+	[ {Object, Subject} || {Object, is, Subject} <- Db, Subject == Subj ].	
+
+buildLinkHierarchy(Links, L, Db) ->
+	%
+	% for list of links build links hierarchy
+	% for example: on top level of is-relationship we have Links = [{passenger_car,vehicle},{auto_producer, heavy_industry}]
+	% for that we build  [{[a157ok],is,priora},{[priora,a157ok],is,passenger_car},{[passenger_car,priora,kalina,a157ok],is,vehicle},{[auto_producer,avtoVAZ],is,heavy_industry},{[kalina],is,passenger_car},{[avtoVAZ],is,auto_producer}]
+	%
+	{LinksObjs, LinksSubjs} = lists:unzip(Links),
+	OneLevelHierarchy = lists:zip3(
+							map(fun findChildrenAndMe/2, Db, LinksObjs),
+							lists:duplicate(length(LinksSubjs), L),
+							LinksSubjs
+						),
+	NewLinks = map(fun findFirstChildren/2, Db, LinksObjs),
+	if NewLinks =/= [] ->
+		DownLevelsHierarchy = buildLinkHierarchy(lists:flatten(NewLinks), L, Db);
+		true -> DownLevelsHierarchy = []
+	end,
+	lists:merge(OneLevelHierarchy, DownLevelsHierarchy).
+
 findLinks()	->
 	Db = [{avtoVAZ, is, auto_producer}, {priora, produced_by, avtoVAZ}, {priora, presented_in, 2007},
 			{priora, is, passenger_car}, {kalina, produced_by, avtoVAZ}, {kalina, presented_in, 2004},
 			{kalina, is, passenger_car}, {passenger_car, has_max_engine_volume, three_l}, {passenger_car, has_max_price, 25000},
-			{a157ok, is, priora}, {passenger_car, is, vehicle}, {avtoVAZ, presented_in, 1969},
-			{the_biggest_steel_consumer, is, avtoVAZ}, {vehicle, has, wheels}
+			{a157ok, is, priora}, {passenger_car, is, vehicle}, {avtoVAZ, presented_in, 1969}, {auto_producer, is, heavy_industry},
+			{heavy_industry, consumes, steel}, {vehicle, has, wheels}
 		 ],
 	{ok,Obj} = io:read("Set object: "),	
 	Parents = findParents(Obj,Db),
@@ -67,20 +92,23 @@ findLinks()	->
 	{ok,L} = io:read("Set link: "),
 	DirtyLinks = [ {Object, Subject} || {Object, Link, Subject} <- Db, Link == L],
 	if L =:= is ->
+		% here we get list of "top-is-objects" -> the heighest objects in hierarchy,
+		% linked with some subject with <L>-relation.
 			LinksWithDb = lists:filter(
 						fun topInIsHierarchy/1, 
 						lists:zip(DirtyLinks,lists:duplicate(length(DirtyLinks), Db))
 					),
 			{Links,_} = lists:unzip(LinksWithDb);
 		true -> 
+		% for non-is relations it's simply all objects of links
 			Links = DirtyLinks
 	end,
-	{LinksObjs, LinksSubjs} = lists:unzip(Links),
-	AllLinks = lists:zip3(
-					map(fun findChildrenAndMe/2, Db, LinksObjs),
-					lists:duplicate(length(LinksSubjs), L),
-					LinksSubjs
-				),
+	AllLinks = buildLinkHierarchy(Links, L, Db),
+	%AllLinks = lists:zip3(
+	%				map(fun findChildrenAndMe/2, Db, LinksObjs),
+	%				lists:duplicate(length(LinksSubjs), L),
+	%				LinksSubjs
+	%			),
 	if ParentsFacts =/= [] ->
 		io:fwrite("Parents' facts: ~W~n", [ParentsFacts,19]);
 		true -> empty
