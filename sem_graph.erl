@@ -3,7 +3,8 @@
 
 %
 % Semantic network
-% Finds all relations with specified object, subject and type of relationship
+% Finds all relations with specified object, subject and type of relationship.
+% NOTE: here subject and object are mixed up. Lazy to replace all (:
 %
 
 map(_, _, []) ->
@@ -41,6 +42,14 @@ findSpecs(Obj, Db) ->
 	%
 	[ {Object, Link, Subject} || {Object, Link, Subject} <- Db, Object == Obj ].
 
+substituteParentByObject({_,Link,Subj}, Object) ->
+	%
+	% Dumb request to output all links with "Main" (user's) object.
+	% So just substitute the object, that's all
+	%
+	{Object,Link,Subj}.
+
+
 topInIsHierarchy({ {_,Subj}, Db }) ->
 	%
 	% Check whether Subj is the top-element of is-hierarchy
@@ -69,7 +78,10 @@ buildLinkHierarchy(Links, L, Db) ->
 							lists:duplicate(length(LinksSubjs), L),
 							LinksSubjs
 						),
-	NewLinks = map(fun findFirstChildren/2, Db, LinksObjs),
+	if L =:= is ->
+		NewLinks = map(fun findFirstChildren/2, Db, LinksObjs);
+		true -> NewLinks = []
+	end,
 	if NewLinks =/= [] ->
 		DownLevelsHierarchy = buildLinkHierarchy(lists:flatten(NewLinks), L, Db);
 		true -> DownLevelsHierarchy = []
@@ -86,6 +98,7 @@ findLinks()	->
 	{ok,Obj} = io:read("Set object: "),	
 	Parents = findParents(Obj,Db),
 	ParentsFacts = lists:flatten(map(fun findSpecs/2, Db, Parents)),
+	ObjectFacts = map(fun substituteParentByObject/2, Obj, ParentsFacts), % dump modification
 	Children = findChildrenAndMe(Obj,Db),
 	ChildrenFacts = lists:flatten(map(fun findSpecs/2, Db, Children)),
 	
@@ -104,13 +117,8 @@ findLinks()	->
 			Links = DirtyLinks
 	end,
 	AllLinks = buildLinkHierarchy(Links, L, Db),
-	%AllLinks = lists:zip3(
-	%				map(fun findChildrenAndMe/2, Db, LinksObjs),
-	%				lists:duplicate(length(LinksSubjs), L),
-	%				LinksSubjs
-	%			),
-	if ParentsFacts =/= [] ->
-		io:fwrite("Parents' facts: ~W~n", [ParentsFacts,19]);
+	if ObjectFacts =/= [] ->
+		io:fwrite("Parents' facts: ~W~n", [ObjectFacts,19]);
 		true -> empty
 	end,
 	if ChildrenFacts =/= [] ->
